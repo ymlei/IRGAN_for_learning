@@ -1,0 +1,119 @@
+目的:理解用户和订单之间的关系
+训练好后的GAN的生成器可以生成任意数量貌似真实的订单
+
+该论文优秀的地方: 建立了一个密集的且低维的订单表示方式
+
+Intro: 产品特征空间(维度低),顾客特征空间
+了解这些可行的订单有助于更好得了解产品需求,顾客偏好,价格预测和季节变换等
+
+用GAN学习订单分布
+用ec2gan预测新产品可能会适用的性别年龄等等特征
+
+ecGAN的评估手段:t-SNE,随机树的数据分布,特征相关性, ec2gan优于条件GAN
+
+proposed method:可以有跟卖家有关的信息
+产品嵌入: 非监督法,用word2vec模型从产品的title提取相关信息,然后同样的语料用来训练IDF逆文档频率.每个word的word2vec表示乘以对应的IDF权重并且在一个title里面全部相加.所有的表达都被一个title里面的总IDF数归一化.在学习的表达空间里这个方法使得同类产品更接近.
+	Word2vec，是为一群用来产生词向量的相关模型。这些模型为浅而双层的神经网络，用来训练以重新建构语言学之词文本。网络以词表现，并且需猜测相邻位置的输入词，在word2vec中词袋模型假设下，词的顺序是不重要的。训练完成之后，word2vec模型可用来映射每个词到一个向量，可用来表示词对词之间的关系，该向量为神经网络之隐藏层。
+顾客嵌入:采用离散多任务RNN,(RNN+LSTM)将和最近历史记录有关的不同信号code到嵌入表达中去,每一个分类信号都是一个多类分类任务,多标签:预测下一个产品群体(衣服还是什么),预测顾客购买的价格区间,预测顾客的购买时间,大概多少天之后他们会购买这个产品,每一次训练的迭代优化一个类,这种方法使得有过类似订单历史的两个顾客分布到同一个语义空间
+
+最终128维顾客矢量,128维产品矢量,1维价格和7维购买时间---264维矢量
+
+
+用WGAN模拟订单表示的空间
+WGAN&GAN: 度量分布差异用的不同earth mover's distance KL散度和JS散度
+彻底解决GAN训练不稳定的问题，不再需要小心平衡生成器和判别器的训练程度
+基本解决了collapse mode的问题，确保了生成样本的多样性 
+训练过程中终于有一个像交叉熵、准确率这样的数值来指示训练的进程，这个数值越小代表GAN训练得越好，代表生成器产生的图像质量越高（如题图所示）
+以上一切好处不需要精心设计的网络架构，最简单的多层全连接网络就可以做到
+判别器最后一层去掉sigmoid
+生成器和判别器的loss不取log
+每次更新判别器的参数之后把它们的绝对值截断到不超过一个固定常数c
+不要用基于动量的优化算法（包括momentum和Adam），推荐RMSProp，SGD也行
+
+G/D生成器：一个全连接网络，这个全连接网络有两个隐藏层且在每一层的末尾有RELU非线性,但是在G的最后一层我们用的是tanh,生成的数据范围应在-1到1
+Relu：一种激活函数，其余还有sigmoid，tanh，softmax
+
+G/D均用多层的全连接网络,控制G的层数为常数,使得D的层数为变化的值,发现当D的层数比G多时,D在早期的迭代中会变得太强以至于G/D很早就收敛了,如果减少D的层数,G不能有效学习真实的数据分布,因此最后决定D和G都是两层
+噪声维度:尝试了32,64,96,128 发现96维噪声维度时最稳定
+用逻辑回归准确度来追踪提出模型的学习能力并且修改参数
+随机选取了一万个真实的订单,用G生成了一万个假的订单,0,1,标记,,随机打乱变成一个两万的数据集,,逻辑回归准确度就是用来追踪G的质量的,八二分为训练集和测试集,若准确度是百分之百,G没有学习到有用的表达D可以很容易分辨真假数据,所以准确度最好是0.5
+
+ecgan:G:96--64--128--264  D:264--128--64--1
+
+
+
+
+IRGAN代码疑问: utils文件中user为什么要输入两遍
+
+损失函数:
+两个网络:细小差别:self.loss /embedding重要的
+可以加特征
+一位数据:提问和  计算匹配度就算是推荐系统的特征 生成其他猜的某用户的打分 标准是原始数据IRGAN
+
+先找数据集,用IRGAN处理,IRGAN修改 -20/之后   谷歌新出的数据集搜索 把各个 怎么搭网络加什么特征
+-----------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------
+函数检索:---------------------------------------------------------------------------------------
+
+tf.Variable--
+tf.random_uniform--https://www.w3cschool.cn/tensorflow_python/tensorflow_python-rnix2gv7.html
+tf.zeros--https://blog.csdn.net/yexudengzhidao/article/details/80981494
+tf.placeholder--https://www.jianshu.com/p/195e4da1dde7
+tf.nn.embedding_lookup--https://blog.csdn.net/uestc_c2_403/article/details/72779417
+tf.gather--https://www.w3cschool.cn/tensorflow_python/tensorflow_python-w3uo2err.html
+tf.multiply--https://blog.csdn.net/mumu_1233/article/details/78887068
+tf.reduce_sum--https://blog.csdn.net/arjick/article/details/78415675
+tf.nn.sigmoid_cross_entropy_with_logits--https://blog.csdn.net/m0_37393514/article/details/81393819
+tf.nn.l2_loss--https://blog.csdn.net/m0_37561765/article/details/79645026
+tf.train.GradientDescentOptimizer()--https://blog.csdn.net/xierhacker/article/details/53174558
+.minimize--https://www.cnblogs.com/jiangpengcheng/articles/8972236.html
+tf.sigmoid--http://www.mamicode.com/info-detail-2315826.html
+f.reshape--https://blog.csdn.net/m0_37592397/article/details/78695318
+tf.nn.softmax--https://www.jianshu.com/p/ed035ab1ecea
+tf.log--https://www.w3cschool.cn/tensorflow_python/tensorflow_python-mesu2f8d.html
+tf.reduce_mean--https://blog.csdn.net/akadiao/article/details/78417749
+
+cPickle.load--https://blog.csdn.net/u010602026/article/details/67650829
+tf.ConfigProto--https://blog.csdn.net/dcrmg/article/details/79091941
+sess.run(tf.global_variables_initializer())--https://blog.csdn.net/u012436149/article/details/78291545
+_ = sess.run--https://blog.csdn.net/superhahahao/article/details/78785566-----https://blog.csdn.net/laolu1573/article/details/67638622
+np.exp--http://www.runoob.com/python/func-number-exp.html
+np.random.choice--https://blog.csdn.net/qfpkzheng/article/details/79061601
+np.arange--https://blog.csdn.net/seraphjing/article/details/70570669
+'\t'.join--https://blog.csdn.net/he_jian1/article/details/40980049
+IRGAN代码解析:
+数据集:用户代号-电影代号-评分 test/train.txt  还有pkl数据文件,作用暂时不明确
+判别器D模型: 用户嵌入层:
+
+
+IRGAN
+在项目推荐中使用的矩阵分解模型,但是也能替换成其他网络
+数据集:ml 网飞
+
+
+
+
+
+
+
+
+kaggle有效数据挑选
+用户数据:id,年龄,对应类型
+
+项目数据:类型,导演,受欢迎程度(感觉这个数据并不能直接用),时长,语言
+
+ for g_step
+求出分布率
+根据分布率去抽样
+抽样后计算reward
+根据reward更新G模型
+
+
+
+
+
+
+
+
+
+
